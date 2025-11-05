@@ -1,0 +1,73 @@
+# templates/terraform-ci-build-template.yml
+# This job performs Terraform validation and creates a plan artifact.
+
+parameters:
+  - name: env
+    type: string
+    displayName: Environment Name (e.g., develop)
+  - name: tfvarsfile
+    type: string
+    displayName: Path to the .tfvars file
+  - name: backendcspn
+    type: string
+    displayName: Azure Service Principal Name for Backend Access
+  - name: backendcontainer
+    type: string
+    displayName: Azure Storage Container Name
+  - name: backendcresourcegroup
+    type: string
+    displayName: Azure Resource Group for Storage
+  - name: backendcstatefile
+    type: string
+    displayName: Name of the state file in storage
+  - name: backendcstorageaccount
+    type: string
+    displayName: Azure Storage Account Name
+
+jobs:
+- job: Terraform_Build_Job
+  displayName: 'Terraform Plan and Validate (${{ parameters.env }})'
+  variables:
+    - template: '$(commonvar)'
+  steps:
+    - task: TerraformInstaller@1
+      displayName: 'Install Terraform $(terraformVersion)'
+      inputs:
+        terraformVersion: '$(terraformVersion)'
+
+    # Terraform Init
+    - task: TerraformTaskV4@4
+      displayName: 'Terraform Init (Backend Setup)'
+      inputs:
+        provider: 'azurerm'
+        command: 'init'
+        workingDirectory: '$(tfWorkingDir)'
+        backendServiceArm: '${{ parameters.backendcspn }}' # Service connection for init
+        backendType: 'azurerm'
+        backendAzureRmContainerName: '${{ parameters.backendcontainer }}'
+        backendAzureRmResourceGroupName: '${{ parameters.backendcresourcegroup }}'
+        backendAzureRmStorageAccountName: '${{ parameters.backendcstorageaccount }}'
+        backendAzureRmKey: '${{ parameters.backendcstatefile }}'
+
+    #Terraform Validate
+    - task: TerraformTaskV4@4
+      displayName: 'Terraform Validate'
+      inputs:
+        provider: 'azurerm'
+        command: 'validate'
+        workingDirectory: '$(tfWorkingDir)'
+
+    # Terraform Plan
+    - task: TerraformTaskV4@4
+      displayName: 'Terraform Plan and Save'
+      inputs:
+        provider: 'azurerm'
+        command: 'plan'
+        workingDirectory: '$(tfWorkingDir)'
+        environmentServiceName: '${{ parameters.backendcspn }}' # Reusing backend SPN for plan execution
+        commandOptions: '-var-file="${{ parameters.tfvarsfile }}" -out=$(Build.ArtifactStagingDirectory)/${{ parameters.env }}.tfplan'
+
+    #Publish Plan Artifact
+    - publish: '$(Build.ArtifactStagingDirectory)/${{ parameters.env }}.tfplan'
+      artifact: '$(tfPlanArtifactName)-${{ parameters.env }}'
+      displayName: 'Publish Plan Artifact'

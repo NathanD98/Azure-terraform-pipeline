@@ -1,0 +1,122 @@
+# templates/terraform-deploy-template.yml
+# This job downloads the plan and performs a Terraform apply.
+
+parameters:
+  - name: env
+    type: string
+    displayName: Environment Name (e.g., develop)
+  - name: tfvarsfile
+    type: string
+    displayName: Path to the .tfvars file
+  - name: spn
+    type: string
+    displayName: Azure Service Principal Name for Deployment (Apply)
+  - name: backendcspn
+    type: string
+    displayName: Azure Service Principal Name for Backend Access
+  - name: backendcontainer
+    type: string
+    displayName: Azure Storage Container Name
+  - name: backendcresourcegroup
+    type: string
+    displayName: Azure Resource Group for Storage
+  - name: backendcstatefile
+    type: string
+    displayName: Name of the state file in storage
+  - name: backendcstorageaccount
+    type: string
+    displayName: Azure Storage Account Name
+
+jobs:
+- deployment: Terraform_Create_plan
+  displayName: 'Create Terraform Plan (${{ parameters.env }})'
+  environment: ${{ parameters.env }} # Links to the Azure DevOps environment
+  variables:
+  - template: '$(commonvar)'
+  strategy:
+    runOnce:
+      deploy:
+        steps:
+          # Install Terraform
+          - task: TerraformInstaller@1
+            displayName: 'Install Terraform $(terraformVersion)'
+            inputs:
+              terraformVersion: '$(terraformVersion)'
+
+          - download: current
+            artifact: '$(tfPlanArtifactName)-${{ parameters.env }}'
+            displayName: 'Download Terraform Plan'
+
+          - task: TerraformTaskV4@4
+            displayName: 'Terraform Init (Backend Setup)'
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              workingDirectory: '$(tfWorkingDir)'
+              backendServiceArm: '${{ parameters.spn }}' 
+              backendType: 'azurerm'
+              backendAzureRmContainerName: '${{ parameters.backendcontainer }}'
+              backendAzureRmResourceGroupName: '${{ parameters.backendcresourcegroup }}'
+              backendAzureRmStorageAccountName: '${{ parameters.backendcstorageaccount }}'
+              backendAzureRmKey: '${{ parameters.backendcstatefile }}'
+
+          - task: TerraformTaskV4@4
+            displayName: 'Re-Run Terraform Plan (Review Output)'
+            inputs:
+              provider: 'azurerm'
+              command: 'plan'
+              workingDirectory: '$(tfWorkingDir)'
+              environmentServiceName: '${{ parameters.spn }}' 
+              commandOptions: '-var-file="${{ parameters.tfvarsfile }}"' 
+
+- job: Terraform_Approve_Plan
+  displayName: 'Manual Approval (${{ parameters.env }})'
+  variables:
+  - template: '$(commonvar)'
+  pool: server
+  steps:
+    - task: ManualValidation@0
+      displayName: 'Manual Approval Gate'
+      timeoutInMinutes: 1440 
+      inputs:
+        instructions: |
+          Review the Terraform plan output (step 4) and confirm it matches expectations for the ${{ parameters.env }} environment. 
+          Click 'Resume' to proceed with 'Terraform Apply', or 'Reject' to stop the deployment.
+
+- deployment: Terraform_Deploy_Job
+  displayName: 'Apply Terraform Plan (${{ parameters.env }})'
+  environment: ${{ parameters.env }} # Links to the Azure DevOps environment
+  variables:
+  - template: '$(commonvar)'
+  strategy:
+    runOnce:
+      deploy:
+        steps:
+          # Install Terraform
+          - task: TerraformInstaller@1
+            displayName: 'Install Terraform $(terraformVersion)'
+            inputs:
+              terraformVersion: '$(terraformVersion)'
+
+          - task: TerraformTaskV4@4
+            displayName: 'Terraform Init (Backend Setup)'
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              workingDirectory: '$(tfWorkingDir)'
+              backendServiceArm: '${{ parameters.spn }}' 
+              backendType: 'azurerm'
+              backendAzureRmContainerName: '${{ parameters.backendcontainer }}'
+              backendAzureRmResourceGroupName: '${{ parameters.backendcresourcegroup }}'
+              backendAzureRmStorageAccountName: '${{ parameters.backendcstorageaccount }}'
+              backendAzureRmKey: '${{ parameters.backendcstatefile }}'
+
+          # Terraform Apply
+          - task: TerraformTaskV4@4
+            displayName: 'Terraform Apply'
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              workingDirectory: '$(tfWorkingDir)'
+              environmentServiceName: '${{ parameters.spn }}' 
+              commandOptions: '$(Pipeline.Workspace)/$(tfPlanArtifactName)-${{ parameters.env }}/${{ parameters.env }}.tfplan' # Reference downloaded plan

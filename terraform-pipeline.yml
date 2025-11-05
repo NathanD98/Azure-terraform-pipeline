@@ -1,0 +1,63 @@
+trigger:
+  branches:
+    include:
+      - develop
+      - 'release/*' 
+
+variables:
+  template: "variables//common-var.yml"
+
+stages:
+  - stage: Build
+    pool:
+      vmImage: windows-latest
+    displayName: Build
+    jobs:
+      - template: templates/terraform-ci-build-template.yml
+        parameters:
+          env: develop
+          tfvarsfile: "terraform//main//var-dev.tfvars"
+          backendcspn: "dev-spn-azrm"
+          backendcontainer: "tfstate"
+          backendcresourcegroup: "rg-dev-uks-01"
+          backendcstatefile: "dev-state.tfst"
+          backendcstorageaccount: "strg-dev-uks-01"
+          commonvar: "..//variables//common-var.yml"
+
+  - stage: DeployDev
+    pool:
+      vmImage: windows-latest
+    displayName: Dev
+    dependsOn: Build
+    #condition:
+    jobs:
+      - template: templates/terraform-deploy-template.yml
+        parameters:
+          env: develop
+          tfvarsfile: "terraform//main//var-dev.tfvars"
+          spn: "dev-spn-azrm"
+          backendcspn: "dev-spn-azrm"
+          backendcontainer: "tfstate"
+          backendcresourcegroup: "rg-dev-uks-01"
+          backendcstatefile: "dev-state.tfst"
+          backendcstorageaccount: "strg-dev-uks-01"
+          commonvar: "..//variables//common-var.yml"
+
+  - stage: DeployTest
+    pool:
+      vmImage: windows-latest
+    displayName: Test
+    dependsOn: DeployDev
+    #condition:
+    jobs:
+      - template: templates/terraform-deploy-template.yml
+        parameters:
+          env: test
+          tfvarsfile: "terraform//main//var-test.tfvars"
+          spn: "test-spn-azrm"
+          backendcspn: "test-spn-azrm"
+          backendcontainer: "tfstate"
+          backendcresourcegroup: "rg-test-uks-01"
+          backendcstatefile: "test-state.tfst"
+          backendcstorageaccount: "strg-test-uks-01"
+          commonvar: "..//variables//common-var.yml"

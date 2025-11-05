@@ -1,2 +1,10 @@
+# variables/common-var.yml
 variables:
-  CommonSPN: my-spn
+  # Define the Terraform version to use across all jobs
+  terraformVersion: '1.5.0'
+
+  # Define a working directory for Terraform files
+  tfWorkingDir: 'terraform/main'
+
+  # Artifact name for the planned output
+  tfPlanArtifactName: 'TerraformPlan'
