@@ -133,7 +133,7 @@ parameters:
               provider: 'azurerm'
               command: 'init'
               workingDirectory: '$(tfWorkingDir)'
-              backendServiceArm: '${{ parameters.backendcspn }}'
+              backendServiceArm: '${{ parameters.spn }}'
               backendType: 'azurerm'
               backendAzureRmContainerName: '${{ parameters.backendcontainer }}'
               backendAzureRmResourceGroupName: '${{ parameters.backendcresourcegroup }}'
