@@ -60,14 +60,20 @@ jobs:
               backendAzureRmStorageAccountName: '${{ parameters.backendcstorageaccount }}'
               backendAzureRmKey: '${{ parameters.backendcstatefile }}'
 
+          # Terraform Plan
           - task: TerraformTaskV4@4
-            displayName: 'Re-Run Terraform Plan (Review Output)'
+            displayName: 'Terraform Plan and Save'
             inputs:
               provider: 'azurerm'
               command: 'plan'
               workingDirectory: '$(tfWorkingDir)'
-              environmentServiceName: '${{ parameters.spn }}' 
-              commandOptions: '-var-file="${{ parameters.tfvarsfile }}"' 
+              environmentServiceName: '${{ parameters.backendcspn }}' # Reusing backend SPN for plan execution
+              commandOptions: '-var-file="${{ parameters.tfvarsfile }}" -out=$(Build.ArtifactStagingDirectory)/${{ parameters.env }}.tfplan'
+
+          #Publish Plan Artifact
+          - publish: '$(Build.ArtifactStagingDirectory)/${{ parameters.env }}.tfplan'
+            artifact: '$(tfPlanArtifactName)-${{ parameters.env }}'
+            displayName: 'Publish Plan Artifact'
 
 - job: Terraform_Approve_Plan
   displayName: 'Manual Approval (${{ parameters.env }})'
