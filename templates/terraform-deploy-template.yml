@@ -5,95 +5,112 @@ parameters:
   - name: env
     type: string
     displayName: Environment Name (e.g., develop)
+
   - name: tfvarsfile
     type: string
     displayName: Path to the .tfvars file
+
   - name: spn
     type: string
     displayName: Azure Service Principal Name for Deployment (Apply)
+
   - name: backendcspn
     type: string
     displayName: Azure Service Principal Name for Backend Access
+
   - name: backendcontainer
     type: string
     displayName: Azure Storage Container Name
+
   - name: backendcresourcegroup
     type: string
     displayName: Azure Resource Group for Storage
+
   - name: backendcstatefile
     type: string
     displayName: Name of the state file in storage
+
   - name: backendcstorageaccount
     type: string
     displayName: Azure Storage Account Name
 
-jobs:
-- deployment: Terraform_Create_plan
+
+# ===============================================================
+# 1️⃣ Terraform Plan Job
+# ===============================================================
+- job: Terraform_Create_Plan
   displayName: 'Create Terraform Plan (${{ parameters.env }})'
-  environment: ${{ parameters.env }} # Links to the Azure DevOps environment
   variables:
-  - template: '$(commonvar)'
-  strategy:
-    runOnce:
-      deploy:
-        steps:
-          # Install Terraform
-          - task: TerraformInstaller@1
-            displayName: 'Install Terraform $(terraformVersion)'
-            inputs:
-              terraformVersion: '$(terraformVersion)'
+    - template: '$(commonvar)'
+  pool:
+    vmImage: 'ubuntu-latest'
+  steps:
+    # Install Terraform
+    - task: TerraformInstaller@1
+      displayName: 'Install Terraform $(terraformVersion)'
+      inputs:
+        terraformVersion: '$(terraformVersion)'
 
-          - download: current
-            artifact: '$(tfPlanArtifactName)-${{ parameters.env }}'
-            displayName: 'Download Terraform Plan'
+    # Initialize Terraform Backend
+    - task: TerraformTaskV4@4
+      displayName: 'Terraform Init (Backend Setup)'
+      inputs:
+        provider: 'azurerm'
+        command: 'init'
+        workingDirectory: '$(tfWorkingDir)'
+        backendServiceArm: '${{ parameters.spn }}'
+        backendType: 'azurerm'
+        backendAzureRmContainerName: '${{ parameters.backendcontainer }}'
+        backendAzureRmResourceGroupName: '${{ parameters.backendcresourcegroup }}'
+        backendAzureRmStorageAccountName: '${{ parameters.backendcstorageaccount }}'
+        backendAzureRmKey: '${{ parameters.backendcstatefile }}'
 
-          - task: TerraformTaskV4@4
-            displayName: 'Terraform Init (Backend Setup)'
-            inputs:
-              provider: 'azurerm'
-              command: 'init'
-              workingDirectory: '$(tfWorkingDir)'
-              backendServiceArm: '${{ parameters.spn }}' 
-              backendType: 'azurerm'
-              backendAzureRmContainerName: '${{ parameters.backendcontainer }}'
-              backendAzureRmResourceGroupName: '${{ parameters.backendcresourcegroup }}'
-              backendAzureRmStorageAccountName: '${{ parameters.backendcstorageaccount }}'
-              backendAzureRmKey: '${{ parameters.backendcstatefile }}'
+    # Create Terraform Plan
+    - task: TerraformTaskV4@4
+      displayName: 'Terraform Plan and Save'
+      inputs:
+        provider: 'azurerm'
+        command: 'plan'
+        workingDirectory: '$(tfWorkingDir)'
+        environmentServiceName: '${{ parameters.spn }}'
+        commandOptions: '-var-file="${{ parameters.tfvarsfile }}" -out=$(Build.ArtifactStagingDirectory)/${{ parameters.env }}.tfplan'
 
-          # Terraform Plan
-          - task: TerraformTaskV4@4
-            displayName: 'Terraform Plan and Save'
-            inputs:
-              provider: 'azurerm'
-              command: 'plan'
-              workingDirectory: '$(tfWorkingDir)'
-              environmentServiceName: '${{ parameters.backendcspn }}' # Reusing backend SPN for plan execution
-              commandOptions: '-var-file="${{ parameters.tfvarsfile }}" -out=$(Build.ArtifactStagingDirectory)/${{ parameters.env }}.tfplan'
+    # Publish Plan Artifact
+    - publish: '$(Build.ArtifactStagingDirectory)/${{ parameters.env }}.tfplan'
+      artifact: '$(tfPlanArtifactName)-${{ parameters.env }}'
+      displayName: 'Publish Plan Artifact'
 
-          #Publish Plan Artifact
-          - publish: '$(Build.ArtifactStagingDirectory)/${{ parameters.env }}.tfplan'
-            artifact: '$(tfPlanArtifactName)-${{ parameters.env }}'
-            displayName: 'Publish Plan Artifact'
 
+# ===============================================================
+# 2️⃣ Manual Approval Job
+# ===============================================================
 - job: Terraform_Approve_Plan
   displayName: 'Manual Approval (${{ parameters.env }})'
-  variables:
-  - template: '$(commonvar)'
+  dependsOn: Terraform_Create_Plan
+  condition: succeeded()
   pool: server
+  variables:
+    - template: '$(commonvar)'
   steps:
     - task: ManualValidation@0
       displayName: 'Manual Approval Gate'
-      timeoutInMinutes: 1440 
+      timeoutInMinutes: 1440
       inputs:
         instructions: |
-          Review the Terraform plan output (step 4) and confirm it matches expectations for the ${{ parameters.env }} environment. 
-          Click 'Resume' to proceed with 'Terraform Apply', or 'Reject' to stop the deployment.
+          Review the Terraform plan output (previous step) and confirm it matches expectations for the ${{ parameters.env }} environment.
+          Click **Resume** to proceed with 'Terraform Apply', or **Reject** to stop the deployment.
 
+
+# ===============================================================
+# 3️⃣ Terraform Apply Deployment
+# ===============================================================
 - deployment: Terraform_Deploy_Job
   displayName: 'Apply Terraform Plan (${{ parameters.env }})'
-  environment: ${{ parameters.env }} # Links to the Azure DevOps environment
+  dependsOn: Terraform_Approve_Plan
+  condition: succeeded()
+  environment: ${{ parameters.env }} # Links to Azure DevOps Environment
   variables:
-  - template: '$(commonvar)'
+    - template: '$(commonvar)'
   strategy:
     runOnce:
       deploy:
@@ -104,25 +121,31 @@ jobs:
             inputs:
               terraformVersion: '$(terraformVersion)'
 
+          # Download Terraform Plan Artifact
+          - download: current
+            artifact: '$(tfPlanArtifactName)-${{ parameters.env }}'
+            displayName: 'Download Terraform Plan Artifact'
+
+          # Initialize Backend
           - task: TerraformTaskV4@4
             displayName: 'Terraform Init (Backend Setup)'
             inputs:
               provider: 'azurerm'
               command: 'init'
               workingDirectory: '$(tfWorkingDir)'
-              backendServiceArm: '${{ parameters.spn }}' 
+              backendServiceArm: '${{ parameters.spn }}'
               backendType: 'azurerm'
               backendAzureRmContainerName: '${{ parameters.backendcontainer }}'
               backendAzureRmResourceGroupName: '${{ parameters.backendcresourcegroup }}'
               backendAzureRmStorageAccountName: '${{ parameters.backendcstorageaccount }}'
               backendAzureRmKey: '${{ parameters.backendcstatefile }}'
 
-          # Terraform Apply
+          # Terraform Apply using downloaded plan
           - task: TerraformTaskV4@4
             displayName: 'Terraform Apply'
             inputs:
               provider: 'azurerm'
               command: 'apply'
               workingDirectory: '$(tfWorkingDir)'
-              environmentServiceName: '${{ parameters.spn }}' 
-              commandOptions: '$(Pipeline.Workspace)/$(tfPlanArtifactName)-${{ parameters.env }}/${{ parameters.env }}.tfplan' # Reference downloaded plan
+              environmentServiceName: '${{ parameters.spn }}'
+              commandOptions: '$(Pipeline.Workspace)/$(tfPlanArtifactName)-${{ parameters.env }}/${{ parameters.env }}.tfplan'
