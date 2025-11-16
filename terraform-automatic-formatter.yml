@@ -1,0 +1,41 @@
+trigger:
+  main
+
+pool:
+vmImage: 'windows-latest'
+
+jobs:
+- job: TerraformFormatter
+  displayName: 'Terraform Validation and Formatting
+  steps:
+  
+  - task: TerraformInstaller@1
+    displayName: 'Install Terraform Latest'
+    inputs:
+      terraformVersion: 'latest'
+
+
+  - task: TerraformTask@0
+    displayName: Initialize Terraform
+    inputs:
+      provider: 'azurerm'
+      command: 'init'
+      backendServiceArm: 'your-backend-service-connection'
+      backendAzureRmResourceGroupName: 'your-rg-name'
+      backendAzureRmStorageAccountName: 'your-stg-name'
+      backendAzureRmContainerName: 'your-container-name'
+      backendAzureRmKey: 'state.tfstate'
+
+  - task: TerraformTask@0
+    displayName: 'Terraform Validate'
+    inputs:
+      provider: 'azure'
+      command: 'validate'
+      workingDirectory: '$(System.DefaultWorkingDirectory)'
+
+  - task: TerraformTask@0
+    displayName: Initialize Terraform
+    inputs:
+      provider: 'azurerm'
+      command: 'init'
+      backendServiceArm: 'your-backend-service-connection'
