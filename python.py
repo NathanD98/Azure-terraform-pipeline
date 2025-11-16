@@ -1,14 +1,14 @@
 import subprocess
 import sys
 import os
-import black 
 
 
 def run_black_on_file(filepath):
     """
-    Runs the 'black' code formatter on the specified file.
+    Runs the 'black' code formatter on the specified file using
+    'python -m black' for robust environment handling.
 
-    Note: The 'black' package must be installed in your environment
+    Note: The 'black' package must be installed in your current environment
     (e.g., using `pip install black`).
 
     Args:
@@ -19,29 +19,29 @@ def run_black_on_file(filepath):
         print(f"Error: File not found at '{filepath}'")
         sys.exit(1)
 
-    # The simplest command to execute black on the target file.
-    command = ['black', filepath]
+    # Use sys.executable (which is 'python' or 'python3') and '-m black'
+    # for robust execution within the current environment.
+    command = [sys.executable, "-m", "black", filepath]
 
     print(f"Attempting to run black on: {filepath}")
+    print(f"Executing command: {' '.join(command)}")
 
     try:
         # subprocess.run executes the command.
-        # check=True ensures a Python error (CalledProcessError) is raised
-        # if the 'black' command itself fails (e.g., if there's a syntax error in the file).
-        # capture_output=False lets black print its output (e.g., "reformatted...") directly to the terminal.
+        # check=True raises CalledProcessError if black exits with a non-zero code
+        # (e.g., if there's a syntax error or if the 'black' module is not found).
         result = subprocess.run(command, check=True, text=True, capture_output=False)
 
         # If we reach this point, the command successfully executed.
         if result.returncode == 0:
             print(f"\nBlack formatting command finished on '{filepath}'.")
 
-    except FileNotFoundError:
-        print("\nERROR: 'black' command not found.")
-        print("Please ensure 'black' is installed and accessible in your system's PATH.")
-        sys.exit(1)
     except subprocess.CalledProcessError as e:
-        # This catches errors reported by the black tool itself (e.g., parsing a broken file).
+        # This catches errors reported by the black tool or environment issues
+        # (like 'No module named black' if it's not installed).
         print(f"\nAn error occurred while running black: {e}")
+        print("Please check if 'black' is installed in the current environment.")
         sys.exit(1)
+
 
 run_black_on_file("C:\\Users\\Nate\\Azure-terraform-pipeline\\")
