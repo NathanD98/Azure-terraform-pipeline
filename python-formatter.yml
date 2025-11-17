@@ -1,0 +1,26 @@
+
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest' # Use a modern, popular VM image
+
+steps:
+- task: UsePythonVersion@0
+  displayName: 'Use Python 3.x (Latest)'
+  inputs:
+    versionSpec: '3.x' # Uses the latest 3.x available on the agent
+    architecture: 'x64'
+
+- script: |
+    # The '|' multiline syntax is useful for complex installation logic
+    # In this case, we install the 'black' linter/formatter.
+    pip install black
+    echo "Black installed successfully."
+  displayName: 'Install Python Dependencies (e.g., black)'
+
+- task: PythonScript@0
+  displayName: 'Run Python Script with Arguments'
+  inputs:
+    scriptPath: 'formatter_script.py'
+    arguments: 'C:\Users\WhoAmI\\Py'
