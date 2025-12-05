@@ -1,0 +1,35 @@
+# Triggers the pipeline on push events to the 'develop' branch
+trigger:
+  branches:
+    include:
+      - develop
+
+# Define external resources (the other repository)
+resources:
+  repositories:
+    - repository: otherRepo # Alias for the repository in this pipeline
+      type: git # 'git' for Azure Repos, 'github' for GitHub, etc.
+      name: ProjectName/OtherRepoName # Format: ProjectName/RepoName
+      ref: main # The branch you want to check out from the other repo
+
+# Use a Microsoft-hosted agent (MSDO supports Windows and Linux, Windows is standard)
+pool:
+  vmImage: 'windows-latest'
+
+steps:
+# Checkout the repository containing this pipeline YAML
+- checkout: self
+  displayName: 'Checkout Main Repository'
+
+# Checkout the external repository defined in resources
+- checkout: otherRepo
+  displayName: 'Checkout Other Repository'
+
+# Run Microsoft Security DevOps (MSDO)
+# Ensure the 'Microsoft Security DevOps' extension is installed in your organization
+- task: MicrosoftSecurityDevOps@1
+  displayName: 'Run Microsoft Security DevOps'
+  # inputs:
+    # Optional: specific tools or categories can be defined here if needed
+    # categories: 'secrets'
+    # break: true # Fails the pipeline if security issues are found
