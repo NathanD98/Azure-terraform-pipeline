@@ -73,10 +73,10 @@ parameters:
         command: 'plan'
         workingDirectory: '$(tfWorkingDir)'
         environmentServiceName: '${{ parameters.spn }}'
-        commandOptions: '-var-file="${{ parameters.tfvarsfile }}" -out=$(Build.ArtifactStagingDirectory)/${{ parameters.env }}.tfplan'
+        commandOptions: '-var-file="${{ parameters.tfvarsfile }}" -out=${{ parameters.env }}.tfplan'
 
     # Publish Plan Artifact
-    - publish: '$(Build.ArtifactStagingDirectory)/${{ parameters.env }}.tfplan'
+    - publish: '${{ parameters.env }}.tfplan'
       artifact: '$(tfPlanArtifactName)-${{ parameters.env }}'
       displayName: 'Publish Plan Artifact'
 
@@ -140,6 +140,15 @@ parameters:
               backendAzureRmStorageAccountName: '${{ parameters.backendcstorageaccount }}'
               backendAzureRmKey: '${{ parameters.backendcstatefile }}'
 
+          # Create Terraform Plan
+          - task: TerraformTaskV4@4
+            displayName: 'Terraform Plan and Save'
+            inputs:
+              provider: 'azurerm'
+              command: 'plan'
+              workingDirectory: '$(tfWorkingDir)'
+              environmentServiceName: '${{ parameters.spn }}'
+              commandOptions: '-var-file="${{ parameters.tfvarsfile }}" -out=${{ parameters.env }}.tfplan'
           # Terraform Apply using downloaded plan
           - task: TerraformTaskV4@4
             displayName: 'Terraform Apply'
@@ -148,4 +157,4 @@ parameters:
               command: 'apply'
               workingDirectory: '$(tfWorkingDir)'
               environmentServiceName: '${{ parameters.spn }}'
-              commandOptions: '$(Pipeline.Workspace)/$(tfPlanArtifactName)-${{ parameters.env }}/${{ parameters.env }}.tfplan'
+              commandOptions: '${{ parameters.env }}.tfplan'
