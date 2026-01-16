@@ -22,7 +22,6 @@ stages:
           backendcresourcegroup: "rg-dev-uks-01"
           backendcstatefile: "dev-state.tfst"
           backendcstorageaccount: "strg-dev-uks-01"
-          commonvar: "..//variables//common-var.yml"
 
   - stage: DeployDev
     pool:
@@ -41,7 +40,6 @@ stages:
           backendcresourcegroup: "rg-dev-uks-01"
           backendcstatefile: "dev-state.tfst"
           backendcstorageaccount: "strg-dev-uks-01"
-          commonvar: "..//variables//common-var.yml"
 
   - stage: DeployTest
     pool:
@@ -60,4 +58,3 @@ stages:
           backendcresourcegroup: "rg-test-uks-01"
           backendcstatefile: "test-state.tfst"
           backendcstorageaccount: "strg-test-uks-01"
-          commonvar: "..//variables//common-var.yml"
