@@ -28,7 +28,7 @@ jobs:
 - job: Terraform_Build_Job
   displayName: 'Terraform Plan and Validate (${{ parameters.env }})'
   variables:
-    - template: '$(commonvar)'
+    - template: 'variables\common-var.yml'
   steps:
     - task: TerraformInstaller@1
       displayName: 'Install Terraform $(terraformVersion)'
