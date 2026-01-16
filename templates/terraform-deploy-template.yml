@@ -41,7 +41,7 @@ parameters:
 - job: Terraform_Create_Plan
   displayName: 'Create Terraform Plan (${{ parameters.env }})'
   variables:
-    - template: '$(commonvar)'
+    - template: 'variables\common-var.yml'
   pool:
     vmImage: 'ubuntu-latest'
   steps:
@@ -90,7 +90,7 @@ parameters:
   condition: succeeded()
   pool: server
   variables:
-    - template: '$(commonvar)'
+    - template: 'variables\common-var.yml'
   steps:
     - task: ManualValidation@0
       displayName: 'Manual Approval Gate'
@@ -110,7 +110,7 @@ parameters:
   condition: succeeded()
   environment: ${{ parameters.env }} # Links to Azure DevOps Environment
   variables:
-    - template: '$(commonvar)'
+    - template: 'variables\common-var.yml'
   strategy:
     runOnce:
       deploy:
